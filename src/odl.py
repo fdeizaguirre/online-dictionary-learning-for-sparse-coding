@@ -3,7 +3,7 @@
 # https://github.com/MehdiAbbanaBennani/online-dictionary-learning-for-sparse-coding/tree/master
 
 # %%
-import sys, os
+import os
 from itertools import tee
 
 import numpy as np
@@ -12,10 +12,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import imageio
 
-# Ruta al directorio donde se encuentran los archivos datos.py y util.py del repositorio de TAO.
-sys.path.append(os.path.abspath("/home/pancho/Documents/PhD/FING/TAO/entregable/datos"))
-import datos
-import util
+import datos.util as util
 
 
 class OnlineDictionaryLearning:
@@ -456,12 +453,36 @@ class OnlineDictionaryLearning:
 
 
 # %%
-luisa = datos.get_char_luisa()
-
-# %%
 if __name__ == "__main__":
+
     from PIL import Image
+    import datos.datos as datos
     import gc
+
+    # %%
+    # Para poder importar la base de datos de LUISA se debe haber descargado la misma y
+    # colocado en el directorio: 'datos/img/chars/caracteres_luisa.npz'
+    # La descarga se puede realizar utilizando el script 'get_chatacteres_luisa.sh'
+    # y luego moviendo el archivo npz al directorio indicado.
+    # Tener en cuenta que el directorio debe ser creado.
+
+    # La versión actual de 'datos' tiene una ruta relativa al directorio donde se almacena
+    # la base de datos descargada. El siguiente código maneja esta situación.
+    try:
+        luisa = datos.get_char_luisa()
+    except:
+        # Guardar el directorio actual
+        directorio_original = os.getcwd()
+        ruta_base = "datos"
+        try:
+            # Cambiar temporalmente al directorio base
+            os.chdir(ruta_base)
+            luisa = datos.get_char_luisa()
+        finally:
+            # Restaurar el directorio original
+            os.chdir(directorio_original)
+
+    # %%
 
     # Ejemplo con distintas configuraciones
     # Agregar variedad en la cantidad de train_batch_size
