@@ -1,0 +1,3 @@
+[submodule "src/datos"]
+	path = src/datos
+	url = https://gitlab.fing.edu.uy/tao/datos.git

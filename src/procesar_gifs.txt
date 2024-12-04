@@ -1,0 +1,14 @@
+https://github.com/kohler/gifsicle
+
+https://graphicdesign.stackexchange.com/questions/20908/how-to-remove-every-second-frame-from-an-animated-gif
+https://www.lcdf.org/gifsicle/man.html
+https://tecfa.unige.ch/guides/utils/gifsicle_man.html
+
+
+Ejemplo:
+
+# Sabes la cantidad de frames
+gifsicle ./grilla-200.gif -I | grep -P "\d+ images" --only-matching | grep -P "\d+" --only-matching
+
+# Submuestrear a la mitad, y otras optimizaciones
+gifsicle -U _old/grilla-40k.gif `seq -f "#%g" 0 2 1001` -O2 --scale=0.75 --optimize=3 --colors=16 -o salida.gif
