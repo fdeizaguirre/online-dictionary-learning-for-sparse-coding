@@ -253,9 +253,16 @@ class OnlineDictionaryLearning:
                     it=it_curr,
                     lam=lam,
                     alpha=alphas[0],
+                    optimizer=optimizer,
                 )
 
         self.compute_objective()
+
+        # Guardar diccionario
+        np.savez(
+            f"{self.base_dir}{os.sep}diccionario_its-{it}_lam-{lam}_k-{k}_{optimizer}_A-{init_A_mod}_B-{init_B_mod}_D-{init_D_mod}.npz",
+            array1=D_curr,
+        )
 
         mosaic = util.mosaico(np.array(D_curr.T))
         plt.figure(figsize=(10, 10))
@@ -331,6 +338,7 @@ class OnlineDictionaryLearning:
         it: int,
         lam: float,
         alpha: np.array,
+        optimizer: str,
     ):
         """
         Registra el estado actual, incluyendo losss e imágenes.
@@ -345,7 +353,7 @@ class OnlineDictionaryLearning:
         loss = self.one_loss(observation, dictionary, alpha)
         self.losses.append(loss)
         self.cumulative_losses.append(self.cumulative_loss())
-        self.offline_loss.append(self.full_dataset_loss(dictionary, lam))
+        self.offline_loss.append(self.full_dataset_loss(dictionary, lam, optimizer))
         image_path = f"{self.base_dir}{os.sep}temp_frame_{it}.png"
         mosaic = util.mosaico(np.array(dictionary.T))
         plt.figure(figsize=(10, 10))
@@ -406,7 +414,9 @@ class OnlineDictionaryLearning:
         else:
             return np.array([next(data_gen) for _ in range(k)]).T
 
-    def observation_loss(self, x_i: np.array, dictionary: np.array, lam: float):
+    def observation_loss(
+        self, x_i: np.array, dictionary: np.array, lam: float, optimizer: str
+    ):
         """
         Calcula la loss para una observación.
 
@@ -418,10 +428,10 @@ class OnlineDictionaryLearning:
         Returns:
             float: loss de la observación.
         """
-        alpha = self.compute_alpha(x_i, dictionary, lam)
+        alpha = self.compute_alpha(x_i, dictionary, lam, optimizer)
         return np.linalg.norm(x_i - np.matmul(dictionary, alpha), ord=2) ** 2
 
-    def full_dataset_loss(self, dictionary: np.array, lam: float):
+    def full_dataset_loss(self, dictionary: np.array, lam: float, optimizer):
         """
         Calcula la loss total para el conjunto de datos de prueba.
 
@@ -435,7 +445,7 @@ class OnlineDictionaryLearning:
         self.test_batch, data_gen = tee(self.test_batch)
         return np.mean(
             [
-                self.observation_loss(next(data_gen), dictionary, lam)
+                self.observation_loss(next(data_gen), dictionary, lam, optimizer)
                 for _ in range(self.test_batch_size)
             ]
         )
@@ -486,7 +496,6 @@ if __name__ == "__main__":
 
     # Ejemplo con distintas configuraciones
     # Agregar variedad en la cantidad de train_batch_size
-    dict_size = 250
     confs = [
         {
             "a": 1,
@@ -565,7 +574,30 @@ if __name__ == "__main__":
             "log": 10,
             "dict_size": 1000,
         },
+        {
+            "a": 1,
+            "b": 0,
+            "d": 0,
+            "opt": "lars",
+            "lamd": 0.001,
+            "train_b_s": 200,
+            "iteraciones": 200,
+            "log": 10,
+            "dict_size": 1000,
+        },
+        {
+            "a": 1,
+            "b": 0,
+            "d": 0,
+            "opt": "lars",
+            "lamd": 0.001,
+            "train_b_s": 400,
+            "iteraciones": 400,
+            "log": 10,
+            "dict_size": 1000,
+        },
     ]
+
     paths = []
     for conf in confs:
         base_dir = f"dict-{conf['dict_size']}_its-{conf['iteraciones']}_a-{conf['a']}_b-{conf['b']}_d-{conf['d']}_opt-{conf['opt']}_lamda-{conf['lamd']}_tbs-{conf['train_b_s']}"
@@ -634,3 +666,65 @@ if __name__ == "__main__":
     )
     print("GIF guardado como 'grilla.gif'")
     gc.collect()
+
+    # %%
+    ## Ejemplos de reconstrucción de caracteres con los diccionarios.
+    np.random.seed(14)  # semilla para hacer pruebas comparables
+
+    cantidad_caracteres = 10
+    cantidad_diccionarios = len(confs)
+    index = np.random.randint(0, luisa.shape[0], 10)
+    ODL = OnlineDictionaryLearning(luisa)
+    caracteres_reconstruidos = []
+    for conf in confs:
+        dp = f"diccionario_its-{conf['iteraciones']}_lam-{conf['lamd']}_k-{conf['dict_size']}_{conf['opt']}_A-{conf['a']}_B-{conf['b']}_D-{conf['d']}.npz"
+        base_dir = f"dict-{conf['dict_size']}_its-{conf['iteraciones']}_a-{conf['a']}_b-{conf['b']}_d-{conf['d']}_opt-{conf['opt']}_lamda-{conf['lamd']}_tbs-{conf['train_b_s']}"
+        dic = np.load(f"{base_dir}{os.sep}{dp}")["array1"]
+        for i in index:
+            caracter = luisa[i].reshape(1, -1)
+            alpha = ODL.compute_alpha(caracter.T, dic, conf["lamd"], conf["opt"])
+            caracter_reconstruido = dic @ alpha
+            caracteres_reconstruidos.append(caracter_reconstruido)
+
+    # Cargar diccionario de referencia y reconstruir con éste.
+    diccionario_ref = np.load("datos/datos/dict/luisa_dict.npz")["dict"]
+    caracteres_reconstruidos_ref = []
+    for i in index:
+        caracter = luisa[i].reshape(1, -1)
+        alpha = ODL.compute_alpha(caracter.T, diccionario_ref.T, 0.001)
+        caracter_reconstruido = alpha @ diccionario_ref
+        caracteres_reconstruidos_ref.append(caracter_reconstruido)
+
+    caracter_size = int(np.sqrt(caracter.shape[1]))
+    plt.figure()
+    fig, axes = plt.subplots(
+        cantidad_diccionarios + 2, cantidad_caracteres, figsize=(8, 8)
+    )
+    plt.axis("off")
+    plt.xlabel("Caracter")
+    plt.ylabel("Diccionario")
+    for i in range((cantidad_diccionarios + 2)):
+        for j in range(cantidad_caracteres):
+            if i == 0:
+                axes[i, j].imshow(
+                    luisa[index[j]].reshape(caracter_size, caracter_size), cmap="gray"
+                )
+                axes[i, j].axis("off")
+            elif i == (cantidad_diccionarios + 1):
+                axes[i, j].imshow(
+                    caracteres_reconstruidos_ref[j].reshape(
+                        caracter_size, caracter_size
+                    ),
+                    cmap="gray",
+                )
+                axes[i, j].axis("off")
+            else:
+                axes[i, j].imshow(
+                    caracteres_reconstruidos[(i - 1) * cantidad_caracteres + j].reshape(
+                        caracter_size, caracter_size
+                    ),
+                    cmap="gray",
+                )
+                axes[i, j].axis("off")
+    plt.savefig(f"reconstruccion.jpeg")
+    plt.show()
