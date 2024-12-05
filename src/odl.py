@@ -182,8 +182,8 @@ class OnlineDictionaryLearning:
         train_batch_size: int = 1,
         optimizer: str = "lasso",
         init_A_mod: int = 1,
-        init_B_mod: int = 1,
-        init_D_mod: int = 1,
+        init_B_mod: int = 0,
+        init_D_mod: int = 0,
     ):
         """
         Ejecuta el aprendizaje del diccionario.
